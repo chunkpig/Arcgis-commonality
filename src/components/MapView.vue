@@ -50,7 +50,8 @@ export default {
           "esri/views/draw/Draw", //绘图功能
           "esri/geometry/support/webMercatorUtils", //坐标转换
           "esri/geometry/geometryEngine", //用于测试，测量和分析两个或多个2D几何之间的空间关系
-          "esri/geometry/Polygon" //多边形
+          "esri/geometry/Polygon", //多边形
+          "esri/widgets/Print" //小部件
         ],
         options
       )
@@ -69,7 +70,8 @@ export default {
             Draw,
             webMercatorUtils,
             geometryEngine,
-            Polygon
+            Polygon,
+            Print
           ]) => {
             //加载宁夏边界
             var layer = new MapImageLayer({
@@ -125,7 +127,8 @@ export default {
                 Draw: Draw, //绘图功能
                 webMercatorUtils: webMercatorUtils, //坐标转换
                 geometryEngine: geometryEngine, //用于测试，测量和分析两个或多个2D几何之间的空间关系
-                Polygon: Polygon //多边形
+                Polygon: Polygon, //多边形
+                Print: Print //小部件
               };
 
               _this.changeMap(obj);

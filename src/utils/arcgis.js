@@ -1,63 +1,89 @@
 import store from "../store/index";
 let utils = {};
 var getMap = store.state.MapObj;
-var targetGoTo; //获取地块基本信息
+var GraphicsLayer;
 var areaModel = "";
 var PolygonGraphic = "";
 var areatices = [];
 var areagraph = "";
+var printDiv;
 var smallgeometry = {};
 utils.install = function(Vue, opt) {
   //地图打点
-  Vue.prototype.ArcgisDot = function(net, title, path) {
-    let symbol = new getMap.obj.PictureMarkerSymbol(path, 13, 13);
-    let point = new getMap.obj.Point(
-      net[0],
-      net[1],
-      new getMap.obj.SpatialReference({
-        wkid: 4326
-      })
-    );
-    let attr = {
-      imei: title, //存放点位基本信息
-      element: targetGoTo //存放地块的基本信息
-    };
-    let g = new getMap.obj.Graphic(point, symbol, attr);
-    getMap.obj.view.graphics.add(g);
+  Vue.prototype.ArcgisDot = function(title) {
+    var Dot = [];
+    for (let i = 0; i < title.length; i++) {
+      let symbol = new getMap.obj.PictureMarkerSymbol(title[i].path, 13, 13);
+      let point = new getMap.obj.Point(
+        title[i].arr[0],
+        title[i].arr[1],
+        new getMap.obj.SpatialReference({
+          wkid: 4326
+        })
+      );
+      let attr = {
+        imei: title[i] //存放点位基本信息
+      };
+      let g = new getMap.obj.Graphic(point, symbol, attr);
+      Dot.push(g);
+      getMap.obj.view.graphics.add(g);
+    }
+    return Dot;
   };
   //地图画地块
-  Vue.prototype.ArcgisPolygon = function(element, arr) {
-    let polylineAtt = {
-      title: element,
-      center: arr[0]
+  Vue.prototype.ArcgisPolygon = function(element) {
+    GraphicsLayer = new getMap.obj.GraphicsLayer();
+    let parcel = {
+      poin: [],
+      polygon: []
     };
-    let polygon = {
-      type: "polygon", // autocasts as new Polygon()
-      rings: arr
-    };
-    let fillSymbol = {
-      type: "simple-fill", // autocasts as new SimpleFillSymbol()
-      color: [170, 66, 77, 0.5],
-      outline: {
-        color: [255, 255, 255, 0.5],
-        width: 1
-      }
-    };
-    let graphic = new getMap.obj.Graphic({
-      geometry: polygon,
-      attributes: polylineAtt,
-      symbol: fillSymbol
-    });
-    let GraphicsLayer = new getMap.obj.GraphicsLayer();
-    GraphicsLayer.add(graphic);
-    getMap.obj.map.add(GraphicsLayer);
-    targetGoTo = graphic;
-    /**
-     * 把生成地块的graphic内容传给点位信息坐标里，点击点位的时候获取地块的基本属性
-     * 使用goto方法里面的target属性，可以使点击后的自动缩放适合的比例
-     * 如不需要这个可不使用
-     */
-    return targetGoTo;
+    for (let i = 0; i < element.length; i++) {
+      let arr = element[i].arr;
+      //start地块
+      let polylineAtt = {
+        title: element[i],
+        center: arr[0]
+      };
+      let polygon = {
+        type: "polygon", // autocasts as new Polygon()
+        rings: arr
+      };
+      let fillSymbol = {
+        type: "simple-fill", // autocasts as new SimpleFillSymbol()
+        color: [170, 66, 77, 0.5],
+        outline: {
+          color: [255, 255, 255, 0.5],
+          width: 1
+        }
+      };
+      let graphic = new getMap.obj.Graphic({
+        geometry: polygon,
+        attributes: polylineAtt,
+        symbol: fillSymbol
+      });
+
+      //end
+      //start地块上的标志
+      let symbol = new getMap.obj.PictureMarkerSymbol(element[i].path, 13, 13);
+      let point = new getMap.obj.Point(
+        element[i].arr[0][0],
+        element[i].arr[0][1],
+        new getMap.obj.SpatialReference({
+          wkid: 4326
+        })
+      );
+      let attr = {
+        imei: graphic //存放点位基本信息
+      };
+      let g = new getMap.obj.Graphic(point, symbol, attr);
+      getMap.obj.view.graphics.add(g);
+      //end
+      parcel.poin.push(g);
+      parcel.polygon.push(graphic);
+      GraphicsLayer.add(graphic);
+      getMap.obj.map.add(GraphicsLayer);
+    }
+    return parcel;
   };
   //地图绘画
   Vue.prototype.ArcgisDraw = function() {
@@ -156,7 +182,6 @@ utils.install = function(Vue, opt) {
   //地图轨迹
   Vue.prototype.ArcgisTrack = function(arry, imgurl) {
     //传过来的数据必须是数组类型
-    let GraphicsLayer = new getMap.obj.GraphicsLayer();
     for (let i = 0; i < arry.length; i++) {
       //绘制起点
       let startPoint = arry[i].paths[0];
@@ -213,35 +238,39 @@ utils.install = function(Vue, opt) {
       });
       getMap.obj.map.add(moveLayer);
       GraphicsLayer.add(polylineGraphic);
+      //加载移动标志
+
       drawMoving(0, 1, arry[i].paths, moveLayer);
     }
     getMap.obj.map.add(GraphicsLayer);
+    let obj = {
+      startPointGraphic: startPointGraphic,
+      stopPointGraphic: stopPointGraphic
+    };
   };
-  function drawMoving(startIndex, stopIndex, paths, moveLayer, graphic) {
+  //动态绘制移动轨迹
+  var drawMoving = function(startIndex, stopIndex, paths, moveLayer, graphic) {
     let endIndex = paths.length;
     if (stopIndex < endIndex) {
+      moveLayer.removeAll();
       let startX = paths[startIndex][0];
       let startY = paths[startIndex][1];
       let stopX = paths[stopIndex][0];
       let stopY = paths[stopIndex][1];
-      console.log(startX);
       //斜率
       let p = (stopY - startY) / (stopX - startX);
-
       //偏移量
+      var people, peopleSimpleMark;
       let v = 0.00005;
-      console.log(graphic);
       if (!graphic) {
-        console.log(graphic);
-        var people = {
+        people = {
           type: "point",
-          longitude: startX,
-          latitude: startY
+          longitude: paths[startIndex][0],
+          latitude: paths[startIndex][1]
         };
-        console.log(people);
-        var peopleSimpleMark = {
+        peopleSimpleMark = {
           type: "picture-marker",
-          url: "../assets/img/red_c1.png",
+          url: require("../assets/img/yellow_2.png"),
           width: 24,
           height: 24
         };
@@ -249,16 +278,34 @@ utils.install = function(Vue, opt) {
           geometry: people,
           symbol: peopleSimpleMark
         });
-        console.log(graphic);
+        moveLayer.add(graphic);
+      } else {
+        people = {
+          type: "point",
+          longitude: paths[startIndex][0],
+          latitude: paths[startIndex][1]
+        };
+        peopleSimpleMark = {
+          type: "picture-marker",
+          url: require("../assets/img/yellow_2.png"),
+          width: 24,
+          height: 24
+        };
+        graphic = new getMap.obj.Graphic({
+          geometry: people,
+          symbol: peopleSimpleMark
+        });
+        moveLayer.add(graphic);
       }
       //定时器
-      let moving = setInterval(function() {
+      var moving = setInterval(function() {
         // debugger;
         // 起点下标
-        let startNum = startIndex;
+        var startNum = startIndex;
         // 终点下标
-        let stopNum = stopIndex;
-        let newX, newY;
+        var stopNum = stopIndex;
+        var newX;
+        var newY;
         // 分别计算x，y轴上的偏移后的坐标
         if (Math.abs(p) === Number.POSITIVE_INFINITY) {
           // 斜率的绝对值为无穷大，斜率不存在，即x轴方向上的偏移量为0
@@ -276,42 +323,66 @@ utils.install = function(Vue, opt) {
           }
         }
         // 判断是否开始进行下一段轨迹移动
-        if (
-          (graphic.geometry.x - stopX) * (newX - stopX) > 0 ||
-          (graphic.geometry.y - stopY) * (newY - stopY) > 0
-        ) {
-          // 可以开始下一段轨迹移动
-          graphic.geometry.x = stopX;
-          graphic.geometry.y = stopY;
-          clearInterval(moving);
-          startIndex++;
-          stopIndex++;
-          if (stopNum < endIndex) {
-            console.log(`第${startIndex}步`);
-            drawMoving(startIndex, stopIndex, paths, moveLayer, graphic);
-          } else {
-            console.log(123);
-            var people = {
-              type: "point",
-              longitude: newX,
-              latitude: newY
-            };
-            var peopleSimpleMark = {
-              type: "picture-marker",
-              url: "../assets/img/red_c1.png",
-              width: 32,
-              height: 32
-            };
-            graphic = new getMap.obj.Graphic({
-              geometry: people,
-              symbol: peopleSimpleMark
-            });
-            moveLayer.graphics = [graphic];
-          }
+
+        // if (
+        //   (graphic.geometry.x - stopX) * (newX - stopX) < 0 ||
+        //   (graphic.geometry.y - stopY) * (newY - stopY) < 0
+        // ) {
+        // 可以开始下一段轨迹移动
+        graphic.geometry.x = stopX;
+        graphic.geometry.y = stopY;
+        clearInterval(moving);
+        startIndex++;
+        stopIndex++;
+        if (stopNum < endIndex) {
+          // console.log(`第${startIndex}步`);
+          // console.log(graphic);
+          drawMoving(startIndex, stopIndex, paths, moveLayer, graphic);
+        } else {
+          console.log(123);
+          var people = {
+            type: "point",
+            longitude: newX,
+            latitude: newY
+          };
+          var peopleSimpleMark = {
+            type: "picture-marker",
+            url: require("../assets/img/yellow_2.png"),
+            width: 24,
+            height: 24
+          };
+          graphic = new getMap.obj.Graphic({
+            geometry: people,
+            symbol: peopleSimpleMark
+          });
+          moveLayer.graphics = [graphic];
         }
-      }, 3000);
+        // }
+      }, 300);
     }
-  }
+  };
+  //清除
+  Vue.prototype.Arcgisclear = function(clearpoint, clearppolygon) {
+    //start 点
+    console.log(GraphicsLayer);
+    for (let i = 0; i < clearpoint.length; i++) {
+      getMap.obj.view.graphics.remove(clearpoint[i]);
+      GraphicsLayer.remove(clearppolygon[i]);
+    }
+    //end
+  };
+  //打印
+  Vue.prototype.Arcgisprint = function() {
+    getMap.obj.view.ui.remove(printDiv);
+    printDiv = new getMap.obj.Print({
+      view: getMap.obj.view,
+      printServiceUrl:
+        "https://utility.arcgisonline.com/arcgis/rest/services/Utilities/PrintingTools/GPServer/Export%20Web%20Map%20Task"
+    });
+    getMap.obj.view.ui.add(printDiv, {
+      position: "top-right"
+    });
+  };
 };
 
 export default utils;
